@@ -1,0 +1,19 @@
+{
+  "name": "nexlayer-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "check": "vgpu check src/shaders/composite.wgsl --require-validation"
+  },
+  "dependencies": {
+    "vgpu": "^0.3.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3",
+    "vite": "^6.0.11"
+  }
+}

@@ -1,0 +1,17 @@
+application:
+  name: living-nexlayer-core
+
+pods:
+  - name: web
+    image: nexlayer.io/auto
+    port: 80
+    resources:
+      memory: 256Mi
+      cpu: 0.25
+    env:
+      - name: NODE_ENV
+        value: production
+    healthCheck:
+      path: /
+      port: 80
+      interval: 10

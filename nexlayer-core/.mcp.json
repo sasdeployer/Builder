@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "nexlayer-mcp": {
+      "type": "http",
+      "url": "https://mcp.nexlayer.ai/api/mcp"
+    }
+  }
+}

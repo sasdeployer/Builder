@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Living Nexlayer Core</title>
+    <link rel="stylesheet" href="/src/style-icon.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header>
+        <h1>Living Nexlayer Core</h1>
+        <p class="tagline">The swarm builds the mark — infrastructure that thinks</p>
+        <p class="back"><a href="/">← Runtime Field</a></p>
+      </header>
+
+      <main>
+        <div id="canvas-wrap">
+          <canvas id="core"></canvas>
+          <div id="state-badge">idle</div>
+        </div>
+
+        <aside id="controls">
+          <p class="controls-label">System state</p>
+          <div class="state-grid" id="state-buttons"></div>
+          <p class="hint">Move cursor over the icon · click to launch · states reflect live infrastructure</p>
+        </aside>
+      </main>
+    </div>
+    <script type="module" src="/src/icon-main.ts"></script>
+  </body>
+</html>

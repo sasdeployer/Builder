@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nexlayer Runtime Field</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <section id="hero">
+        <canvas id="field"></canvas>
+
+        <div id="hero-copy">
+          <p class="brand">Nexlayer</p>
+          <h1>Software assembling itself into a living runtime.</h1>
+          <p class="sub">
+            Watch a prompt become a full-stack application — services materialize,
+            connections establish, traffic flows.
+          </p>
+        </div>
+
+        <div id="status-chip">
+          <span id="status-dot"></span>
+          <span id="status-label">Initializing field</span>
+        </div>
+
+        <div id="hero-actions">
+          <button type="button" id="btn-replay" class="btn primary">Replay deploy</button>
+          <button type="button" id="btn-agent" class="btn ghost">
+            Claude, add Redis
+          </button>
+        </div>
+      </section>
+
+      <aside id="detail">
+        <p class="eyebrow">Runtime Field</p>
+        <h2>The application is alive inside Nexlayer.</h2>
+        <ul id="beat-list">
+          <li data-beat="prompt">Prompt enters the field</li>
+          <li data-beat="core">Nexlayer core ignites</li>
+          <li data-beat="assemble">Services materialize</li>
+          <li data-beat="connect">Topology connects</li>
+          <li data-beat="live">Traffic goes LIVE</li>
+          <li data-beat="agent">Agent extends the runtime</li>
+        </ul>
+        <p class="footnote">
+          Not boxes and arrows — physical nodes in a spatial runtime. Storage has
+          mass. Compute pulses. External APIs sit outside the boundary.
+        </p>
+        <a class="icon-link" href="/icon.html">Open Living Core icon →</a>
+      </aside>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
