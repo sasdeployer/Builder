@@ -1,0 +1,14 @@
+application:
+  name: builder
+  version: 2.0
+  pods:
+    - name: builder
+      image: "registry.nexlayer.io/user_01m47dfhg60zn1jv2p7gkegt3x/builder-builder:planned"
+      resourceType: job
+      command: "/go/src/builder/builder"
+      vars:
+        HOME: "/data"
+      volumes:
+        - name: artifacts
+          mountPath: /data
+          size: 5Gi

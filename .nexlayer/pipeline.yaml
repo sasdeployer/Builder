@@ -1,0 +1,30 @@
+# How this app goes from a commit to live on Nexlayer.
+# Written by Nexlayer from what it read in this repo; owned by your coding
+# agent from here. Every agent and CI runs exactly this. Secret VALUES are
+# never written here.
+app: builder
+deploy:
+  config: nexlayer.yaml   # a draft, added by this plan — check it
+  environment: ~   # set by the first deploy
+  through: nexlayer-mcp          # validate -> deploy -> status; nothing deploys around it
+build:
+  - pod: builder             # the nexlayer.yaml pod that runs it
+    image: builder-builder         # registry.nexlayer.io/<your user id>/builder-builder:<tag>
+    context: .
+    dockerfile: Dockerfile
+    platform: linux/amd64
+    tag: git-sha                 # immutable; "latest" is rejected
+    # read from `Dockerfile`
+services:
+  - name: builder
+    public: false   # read from `.nexlayer/drafts/nexlayer.yaml`
+verify:                         # done means all of these pass
+  - service: builder
+    status: running             # nexlayer_check_deployment_status
+rollback: redeploy the previous image tag from the Nexlayer deploy history
+notes:                          # from the analysis — keep what holds, fix what doesn't
+  - 'Builder is a CLI/batch tool, not a long-running web service; deploy as a job-type pod that executes builds and exits.'
+  - 'The container mounts a volume at /data (or similar) for persistent artifact and metadata storage across invocations.'
+  - 'No database pod is required; metadata is stored as flat YAML/JSON files within the artifact directory.'
+  - 'The gui/ directory uses lorca (native Chrome webview) and is incompatible with headless container environments; only the CLI build pipeline is deployable on-cluster.'
+  - 'To build multi-language targets inside the container, install language toolchains (go, dotnet, javac, node, python3, ruby) in the image or mount them as sidecar volumes.'

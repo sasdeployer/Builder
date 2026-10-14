@@ -1,0 +1,231 @@
+{
+  "schema": "nexlayer.plan.findings/2",
+  "app": "builder",
+  "repo": "https://github.com/sasdeployer/Builder",
+  "branch": "main",
+  "analyzedAt": "2026-10-14T19:33:09.324Z",
+  "registered": true,
+  "techStack": [
+    {
+      "name": "Go",
+      "kind": "language",
+      "version": "1.16",
+      "basis": {
+        "kind": "read",
+        "sources": [
+          "go.mod",
+          "Dockerfile"
+        ]
+      }
+    },
+    {
+      "name": "promptui",
+      "kind": "tool",
+      "version": "0.8.0",
+      "basis": {
+        "kind": "read",
+        "sources": [
+          "go.mod"
+        ]
+      }
+    },
+    {
+      "name": "lorca",
+      "kind": "tool",
+      "version": "0.1.10",
+      "basis": {
+        "kind": "read",
+        "sources": [
+          "go.mod"
+        ]
+      }
+    },
+    {
+      "name": "zap",
+      "kind": "tool",
+      "version": "1.24.0",
+      "basis": {
+        "kind": "read",
+        "sources": [
+          "go.mod"
+        ]
+      }
+    },
+    {
+      "name": "yaml.v3",
+      "kind": "tool",
+      "version": "3.0.1",
+      "basis": {
+        "kind": "read",
+        "sources": [
+          "go.mod"
+        ]
+      }
+    },
+    {
+      "name": "yacspin",
+      "kind": "tool",
+      "version": "0.13.12",
+      "basis": {
+        "kind": "read",
+        "sources": [
+          "go.mod"
+        ]
+      }
+    }
+  ],
+  "services": [
+    {
+      "name": "builder",
+      "image": "registry.nexlayer.io/YOUR_USER_ID/builder-builder:planned",
+      "role": null,
+      "port": null,
+      "reachable": false,
+      "reachableBasis": {
+        "kind": "read",
+        "sources": [
+          ".nexlayer/drafts/nexlayer.yaml"
+        ]
+      },
+      "envNames": [
+        "HOME"
+      ]
+    }
+  ],
+  "secrets": [],
+  "secretsSummary": {
+    "total": 0,
+    "supplied": 0,
+    "neededFromHuman": 0
+  },
+  "codeGaps": [],
+  "buildConfig": {},
+  "deployNotes": [
+    "Builder is a CLI/batch tool, not a long-running web service; deploy as a job-type pod that executes builds and exits.",
+    "The container mounts a volume at /data (or similar) for persistent artifact and metadata storage across invocations.",
+    "No database pod is required; metadata is stored as flat YAML/JSON files within the artifact directory.",
+    "The gui/ directory uses lorca (native Chrome webview) and is incompatible with headless container environments; only the CLI build pipeline is deployable on-cluster.",
+    "To build multi-language targets inside the container, install language toolchains (go, dotnet, javac, node, python3, ruby) in the image or mount them as sidecar volumes."
+  ],
+  "intent": null,
+  "fromManifest": false,
+  "live": null,
+  "legacyDocs": [],
+  "drafts": {
+    "manifest": true,
+    "by": "agent",
+    "dockerfiles": [],
+    "noTemplate": []
+  },
+  "productionPlan": {
+    "summary": "Builder is a Go CLI that clones a repo, detects its language, compiles or packages it, and emits a zip artifact with build metadata. It runs to completion as a batch job with no web server or persistent daemon. The one thing that matters most is that the Dockerfile lacks a CMD to actually execute the built binary, so the job currently exits without doing any work.",
+    "decisions": [
+      {
+        "topic": "services",
+        "decision": "Single pod running as a Kubernetes job that executes a build and exits; no companion pods",
+        "why": "Builder is a CLI tool invoked with `builder init [repo url]` or `builder` from a workspace — it performs a one-shot build and terminates, with no listening port or long-running process",
+        "evidence": [
+          "main.go",
+          "cmd/builder.go",
+          "cmd/init.go"
+        ]
+      },
+      {
+        "topic": "storage",
+        "decision": "A 5 Gi volume mounted at /data for workspace, logs, artifact, and hidden directories that must survive restarts",
+        "why": "The directory/ package creates hidden, logs, workspace, and artifact dirs on disk; without persistence the built artifacts and metadata are lost after the job pod is rescheduled",
+        "evidence": [
+          "directory/workspace.go",
+          "directory/logs.go",
+          "artifact/artifactDir.go",
+          "directory/hidden.go"
+        ]
+      },
+      {
+        "topic": "build",
+        "decision": "Use golang:1.16-alpine matching go.mod's go 1.16 directive, add ENV GOTOOLCHAIN=auto, tini, ca-certificates, and a CMD that runs /go/src/builder/builder",
+        "why": "The existing Dockerfile builds the binary but has no CMD or ENTRYPOINT so the container exits immediately without executing it; tini ensures proper signal handling and ca-certificates enables git clone over HTTPS",
+        "evidence": [
+          "Dockerfile",
+          "go.mod"
+        ]
+      },
+      {
+        "topic": "background_work",
+        "decision": "Set resourceType to job (application.version 2.0) — Builder is a run-to-completion workload, not a deployment",
+        "why": "Builder's main() dispatches a single command (init, config, or build) and returns; it never enters a loop or serves requests",
+        "evidence": [
+          "main.go",
+          "cmd/builder.go"
+        ]
+      },
+      {
+        "topic": "networking",
+        "decision": "No servicePorts and no path — the job pod exposes no network endpoint",
+        "why": "Builder only uses outbound git clone; it never listens on a port",
+        "evidence": [
+          "utils/cloneRepo.go",
+          "main.go"
+        ]
+      }
+    ],
+    "fix_before_production": [
+      {
+        "title": "Add a CMD or ENTRYPOINT to execute the built binary",
+        "why": "The Dockerfile compiles /go/src/builder/builder but has no CMD — the container starts, does nothing, and exits immediately, so every job run completes with zero output",
+        "where": "Dockerfile",
+        "severity": "blocker"
+      },
+      {
+        "title": "Remove or gate the GUI mode (lorca) behind a build tag or runtime check",
+        "why": "main.go unconditionally imports the gui package which calls lorca (requires a native Chrome binary); running `builder gui` inside the container will panic at runtime",
+        "where": "main.go",
+        "severity": "should"
+      },
+      {
+        "title": "Install language toolchains (dotnet-sdk, openjdk, node, python3, ruby) in the Docker image",
+        "why": "The compile/ package shells out to `dotnet publish`, `javac`, `npm`, `python`, `ruby` — without them every non-Go build silently fails inside the container",
+        "where": "Dockerfile",
+        "severity": "should"
+      }
+    ],
+    "verify_after_deploy": [
+      "`builder init https://github.com/example/go-hello` completes and produces a workspace directory with a builder.yaml and an artifact zip",
+      "The artifact directory contains both .json and .yaml metadata files alongside the zip",
+      "The job pod exits with exit code 0 and logs show 'Build Complete 🔨'",
+      "The volume at /data retains the artifact zip after the pod completes (check volume contents before reschedule)"
+    ],
+    "open_questions": [
+      "Which target languages must be buildable in production? This determines which toolchains to install in the image (Go only vs. all six supported languages).",
+      "Should this run as an on-demand Job (triggered externally) or a CronJob with a schedule (e.g., nightly rebuilds)?",
+      "Does the GUI mode need to remain in the binary at all, or can it be excluded from the production build via a separate entrypoint?"
+    ],
+    "nexlayer_yaml": "application:\n  name: builder\n  version: 2.0\n  pods:\n    - name: builder\n      image: \"registry.nexlayer.io/YOUR_USER_ID/builder-builder:planned\"\n      resourceType: job\n      command: \"/go/src/builder/builder\"\n      vars:\n        HOME: \"/data\"\n      volumes:\n        - name: artifacts\n          mountPath: /data\n          size: 5Gi",
+    "builds": [
+      {
+        "service": "builder",
+        "context": ".",
+        "dockerfile": "Dockerfile",
+        "exists": true,
+        "notes": "Rewrite the existing Dockerfile: keep golang:1.16-alpine as builder stage (matches go.mod), add ENV GOTOOLCHAIN=auto before go mod download, build with CGO_ENABLED=0 go build -ldflags=\"-w -s\" -o /app/builder. Final stage: mirror.gcr.io/library/alpine:3.20, RUN apk add --no-cache ca-certificates tini git dotnet-sdk openjdk17 nodejs python3 ruby, COPY --from=builder /app/builder /usr/local/bin/builder, ENTRYPOINT [\"/sbin/tini\",\"--\"], CMD [\"builder\"]. Ensure the binary binds to nothing (no port needed). Work in /data (volume mount) so artifacts persist."
+      }
+    ],
+    "yaml_valid": true,
+    "model": "deepseek-v4-flash",
+    "dropped_evidence": 0
+  },
+  "builds": [
+    {
+      "pod": "builder",
+      "image": "builder-builder",
+      "context": ".",
+      "dockerfile": "Dockerfile",
+      "basis": {
+        "kind": "read",
+        "sources": [
+          "Dockerfile"
+        ]
+      }
+    }
+  ]
+}
