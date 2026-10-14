@@ -3,7 +3,7 @@
   "app": "builder",
   "repo": "https://github.com/sasdeployer/Builder",
   "branch": "main",
-  "analyzedAt": "2026-10-14T19:33:09.324Z",
+  "analyzedAt": "2026-10-14T19:33:33.479Z",
   "registered": true,
   "techStack": [
     {
@@ -107,7 +107,9 @@
     "The gui/ directory uses lorca (native Chrome webview) and is incompatible with headless container environments; only the CLI build pipeline is deployable on-cluster.",
     "To build multi-language targets inside the container, install language toolchains (go, dotnet, javac, node, python3, ruby) in the image or mount them as sidecar volumes."
   ],
-  "intent": null,
+  "intent": {
+    "stage": "side-project"
+  },
   "fromManifest": false,
   "live": null,
   "legacyDocs": [],

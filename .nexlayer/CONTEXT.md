@@ -5,7 +5,7 @@ starts with the same picture. Read this before proposing infrastructure
 changes.
 
 - **Repo** `https://github.com/sasdeployer/Builder` on `main`
-- **Analyzed** 2026-10-14T19:33:09.324Z
+- **Analyzed** 2026-10-14T19:33:33.479Z
 
 ## Stack
 
@@ -33,6 +33,14 @@ Networking, HTTPS, and service discovery are handled.
 ## Secrets
 
 This app needs no secrets to run.
+
+## What the human told us
+
+**Stage.** This is a side project.
+
+Said by a person, not derived from the code. Where this contradicts what
+the repo looks like, the person is right about intent and the repo is
+right about what exists today.
 
 ## Notes from the analysis
 
