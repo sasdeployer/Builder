@@ -115,6 +115,7 @@ func Builder() {
 		// Stop loading spinner
 		spinner.Spinner.Stop()
 	} else {
-		utils.Help()
+		// Help() exits 0 in this mode, so report the missing builder.yaml instead.
+		spinner.LogMessage("No builder.yaml in "+path+".  `builder` runs from a builder.yaml; create one with `builder init <repo url>` or `builder config <repo url>` (see `builder --help`)", "fatal")
 	}
 }
