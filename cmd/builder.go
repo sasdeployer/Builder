@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"Builder/derive"
 	"Builder/directory"
 	"Builder/spinner"
 	"Builder/utils"
@@ -78,7 +77,7 @@ func Builder() {
 		spinner.LogMessage("Files copied to hidden dir successfully.", "info")
 
 		//creates a new artifact
-		derive.ProjectType()
+		runBuild()
 
 		//Get build metadata (deprecated, func moved inside compiler)
 		spinner.LogMessage("Metadata created successfully.", "info")

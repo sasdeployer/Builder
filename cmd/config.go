@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"Builder/derive"
 	"Builder/directory"
 	"Builder/spinner"
 	"Builder/utils"
@@ -44,7 +43,7 @@ func Config() {
 	utils.CloneRepoFiles(repoDir, hiddenDir)
 
 	// compile logic to derive project type
-	derive.ProjectType()
+	runBuild()
 
 	//Get build metadata (deprecated, func moved inside compiler)
 	// utils.Metadata()
