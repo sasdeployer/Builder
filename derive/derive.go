@@ -2,6 +2,7 @@ package derive
 
 import (
 	"Builder/compile"
+	"Builder/output"
 	"Builder/spinner"
 	"Builder/utils"
 	"fmt"
@@ -266,6 +267,9 @@ func extExistsFunction(dirPath string, ext string) (bool, string) {
 }
 
 func selectPathToCompileFrom(filePaths []string) string {
+	if !output.Interactive() {
+		spinner.LogMessage("This solution has several projects ("+strings.Join(filePaths, ", ")+").  Set buildfile in builder.yaml to choose one; Builder won't prompt in non-interactive runs", "fatal")
+	}
 	prompt := promptui.Select{
 		Label: "Select a Path To Compile From: ",
 		Items: filePaths,

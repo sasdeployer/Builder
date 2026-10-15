@@ -1,7 +1,9 @@
 package spinner
 
 import (
+	"Builder/output"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -15,7 +17,18 @@ var cfg = yacspin.Config{
 	CharSet:       []string{"⣧", "⣇", "⡇", "⠇", "⠃", "⠁", "⠃", "⠇", "⡇", "⣇", "⣧", "⣧"},
 	StopCharacter: "",
 }
-var Spinner, _ = yacspin.New(cfg)
+var Spinner, _ = yacspin.New(spinnerConfig())
+
+// spinnerConfig silences the spinner when output isn't a terminal (agents, CI,
+// pipes, --json), where its frames would only add noise to captured output.
+func spinnerConfig() yacspin.Config {
+	c := cfg
+	if !output.TTY() {
+		c.Writer = io.Discard
+	}
+	return c
+}
+
 var Caller string
 
 func debugEnabled() bool {
@@ -52,6 +65,7 @@ func LogMessage(msg string, level string) {
 
 	if label == "FATAL" {
 		fmt.Fprintln(os.Stderr, line)
+		output.Failure(msg, Caller)
 		os.Exit(1)
 	}
 	if debugEnabled() {
