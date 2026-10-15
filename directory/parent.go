@@ -191,15 +191,7 @@ func UpdateParentDirName(pathWithWrongParentName string) string {
 		// 	spinner.LogMessage("could not rename parent dir", "fatal")
 		// }
 
-		err := CopyDir(path+"/"+oldName[2:], path+"/"+newName[2:])
-		if err != nil {
-			spinner.LogMessage("Couldn't copy over files to new parent dir: "+err.Error(), "fatal")
-		}
-
-		err = os.RemoveAll(path + "/" + oldName[2:])
-		if err != nil {
-			spinner.LogMessage("Couldn't delete old parent dir: "+err.Error(), "fatal")
-		}
+		moveDir(path+"/"+oldName[2:], path+"/"+newName[2:])
 
 	} else {
 		// err := os.Rename(oldName, newName)
@@ -208,15 +200,7 @@ func UpdateParentDirName(pathWithWrongParentName string) string {
 		// 	spinner.LogMessage("could not rename parent dir", "fatal")
 		// }
 
-		err := CopyDir(oldName, newName)
-		if err != nil {
-			spinner.LogMessage("Couldn't copy over files to new parent dir: "+err.Error(), "fatal")
-		}
-
-		err = os.RemoveAll(oldName)
-		if err != nil {
-			spinner.LogMessage("Couldn't delete old parent dir: "+err.Error(), "fatal")
-		}
+		moveDir(oldName, newName)
 	}
 
 	// Update env vars to include new parent folder name
@@ -295,4 +279,19 @@ func CopyDir(src string, dst string) error {
 		}
 	}
 	return nil
+}
+
+// moveDir renames a build's parent dir. A rename is instant regardless of
+// size; copying (then deleting the original) is only needed when the two
+// paths are on different filesystems.
+func moveDir(from, to string) {
+	if err := os.Rename(from, to); err == nil {
+		return
+	}
+	if err := CopyDir(from, to); err != nil {
+		spinner.LogMessage("Couldn't copy over files to new parent dir: "+err.Error(), "fatal")
+	}
+	if err := os.RemoveAll(from); err != nil {
+		spinner.LogMessage("Couldn't delete old parent dir: "+err.Error(), "fatal")
+	}
 }

@@ -7,11 +7,8 @@ import (
 	"Builder/utils"
 	"Builder/utils/log"
 	"Builder/yaml"
-	"archive/zip"
 	"bufio"
-	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -43,8 +40,7 @@ func Python() {
 	os.Mkdir(tempWorkspace, 0755)
 
 	//add hidden dir contents to temp dir, install dependencies
-	err := cp.Copy(hiddenDir+"/.", tempWorkspace)
-	if err != nil {
+	if err := utils.CloneTree(hiddenDir, tempWorkspace, nil); err != nil {
 		spinner.LogMessage(err.Error(), "warn")
 	}
 
@@ -164,22 +160,8 @@ func Python() {
 	parsedStartTime, _ := time.Parse(time.RFC850, os.Getenv("BUILD_START_TIME"))
 	timeBuildStarted := parsedStartTime.Unix()
 
-	outFile, err := os.Create(workspaceDir + "/artifact_" + strconv.FormatInt(timeBuildStarted, 10) + ".zip")
-	if err != nil {
-		spinner.LogMessage("Python failed to get artifact: "+err.Error(), "fatal")
-	}
-
-	defer outFile.Close()
-
-	// Create a new zip archive.
-	w := zip.NewWriter(outFile)
-
-	// Add files from temp dir to the archive.
-	addPythonFiles(w, tempWorkspace, "")
-
-	wErr := w.Close()
-	if wErr != nil {
-		spinner.LogMessage("Python project failed to compile: "+wErr.Error(), "fatal")
+	if err := zipTree(workspaceDir+"/artifact_"+strconv.FormatInt(timeBuildStarted, 10)+".zip", tempWorkspace); err != nil {
+		spinner.LogMessage("Python project failed to compile: "+err.Error(), "fatal")
 	}
 	packagePythonArtifact(fullPath)
 
@@ -212,9 +194,8 @@ func packagePythonArtifact(fullPath string) {
 	os.Setenv("BUILDER_ARTIFACT_NAMES", extName)
 
 	//copy artifact, then remove artifact in workspace
-	err := cp.Copy(workspaceDir+"/"+extName, artifactDir+"/"+extName)
-	if err != nil {
-		spinner.LogMessage(err.Error(), "warn")
+	if err := moveFile(workspaceDir+"/"+extName, artifactDir+"/"+extName); err != nil {
+		spinner.LogMessage("could not move artifact into the artifact dir: "+err.Error(), "fatal")
 	}
 
 	// If outputpath provided also cp artifacts to that location
@@ -226,17 +207,12 @@ func packagePythonArtifact(fullPath string) {
 			}
 		}
 
-		err := cp.Copy(workspaceDir+"/"+extName, outputPath+"/"+extName)
+		err := cp.Copy(artifactDir+"/"+extName, outputPath+"/"+extName)
 		if err != nil {
 			spinner.LogMessage(err.Error(), "warn")
 		}
 
 		spinner.LogMessage("Artifact(s) copied to output path provided", "info")
-	}
-
-	errRemove := os.Remove(workspaceDir + "/" + extName)
-	if errRemove != nil {
-		spinner.LogMessage(errRemove.Error(), "warn")
 	}
 
 	//create metadata, then copy contents to zip dir
@@ -269,43 +245,6 @@ func packagePythonArtifact(fullPath string) {
 		errRemove := os.Remove(artifactDir + archiveExt)
 		if errRemove != nil {
 			spinner.LogMessage(errRemove.Error(), "warn")
-		}
-	}
-}
-
-// recursively add files
-func addPythonFiles(w *zip.Writer, basePath, baseInZip string) {
-	// Open the Directory
-	files, err := ioutil.ReadDir(basePath)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	for _, file := range files {
-		if !file.IsDir() {
-			dat, err := ioutil.ReadFile(basePath + file.Name())
-			if err != nil {
-				fmt.Println(err)
-			}
-
-			// Add some files to the archive.
-			f, err := w.Create(baseInZip + file.Name())
-			if err != nil {
-				fmt.Println(err)
-			}
-			_, err = f.Write(dat)
-			if err != nil {
-				fmt.Println(err)
-			}
-		} else if file.IsDir() && file.Name() == ".git" {
-			// Git metadata isn't part of the artifact, and its index and logs
-			// change on every clone, which would make zips non-reproducible.
-			continue
-		} else if file.IsDir() {
-
-			// Recurse
-			newBase := basePath + file.Name() + "/"
-			addPythonFiles(w, newBase, baseInZip+file.Name()+"/")
 		}
 	}
 }

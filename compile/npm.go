@@ -7,9 +7,7 @@ import (
 	"Builder/utils"
 	"Builder/utils/log"
 	"Builder/yaml"
-	"archive/zip"
 	"bufio"
-	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -39,8 +37,7 @@ func Npm() {
 	os.Mkdir(tempWorkspace, 0755)
 
 	//add hidden dir contents to temp dir, install dependencies
-	err := cp.Copy(hiddenDir+"/.", tempWorkspace)
-	if err != nil {
+	if err := utils.CloneTree(hiddenDir, tempWorkspace, nil); err != nil {
 		spinner.LogMessage(err.Error(), "warn")
 	}
 
@@ -157,21 +154,7 @@ func Npm() {
 	parsedStartTime, _ := time.Parse(time.RFC850, os.Getenv("BUILD_START_TIME"))
 	timeBuildStarted := parsedStartTime.Unix()
 
-	outFile, err := os.Create(workspaceDir + "/artifact_" + strconv.FormatInt(timeBuildStarted, 10) + ".zip")
-	if err != nil {
-		spinner.LogMessage("node-npm failed to get artifact: "+err.Error(), "fatal")
-	}
-
-	defer outFile.Close()
-
-	// Create a new zip archive.
-	w := zip.NewWriter(outFile)
-
-	// Add files from temp dir to the archive.
-	addNpmFiles(w, tempWorkspace, "")
-
-	err = w.Close()
-	if err != nil {
+	if err := zipTree(workspaceDir+"/artifact_"+strconv.FormatInt(timeBuildStarted, 10)+".zip", tempWorkspace); err != nil {
 		spinner.LogMessage("node-npm project failed to compile: "+err.Error(), "fatal")
 	}
 
@@ -208,9 +191,8 @@ func packageNpmArtifact(fullPath string) {
 	os.Setenv("BUILDER_ARTIFACT_NAMES", extName)
 
 	//copy artifact, then remove artifact in workspace
-	err := cp.Copy(workspaceDir+"/"+extName, artifactDir+"/"+extName)
-	if err != nil {
-		spinner.LogMessage(err.Error(), "warn")
+	if err := moveFile(workspaceDir+"/"+extName, artifactDir+"/"+extName); err != nil {
+		spinner.LogMessage("could not move artifact into the artifact dir: "+err.Error(), "fatal")
 	}
 
 	// If outputpath provided also cp artifacts to that location
@@ -222,17 +204,12 @@ func packageNpmArtifact(fullPath string) {
 			}
 		}
 
-		err := cp.Copy(workspaceDir+"/"+extName, outputPath+"/"+extName)
+		err := cp.Copy(artifactDir+"/"+extName, outputPath+"/"+extName)
 		if err != nil {
 			spinner.LogMessage(err.Error(), "warn")
 		}
 
 		spinner.LogMessage("Artifact(s) copied to output path provided", "info")
-	}
-
-	errRemove := os.Remove(workspaceDir + "/" + extName)
-	if errRemove != nil {
-		spinner.LogMessage(errRemove.Error(), "warn")
 	}
 
 	//create metadata, then copy contents to zip dir
@@ -260,60 +237,6 @@ func packageNpmArtifact(fullPath string) {
 	// 	//remove artifact directory
 	// 	exec.Command("rm", "-r", artifactDir).Run()
 	// }
-}
-
-// recursively add files
-func addNpmFiles(w *zip.Writer, basePath, baseInZip string) {
-	// If basePath includes old parent folder name, fix it before we start (necessary for symlinks)
-	// projectName := utils.GetName()
-	// parsedStartTime, _ := time.Parse(time.RFC850, os.Getenv("BUILD_START_TIME"))
-	// timeBuildStarted := parsedStartTime.Unix()
-	// oldParentName := projectName + "_" + projectName
-	// newParentName := projectName + "_" + strconv.FormatInt(timeBuildStarted, 10)
-	// if strings.Contains(basePath, oldParentName) {
-	// 	basePath = strings.Replace(basePath, oldParentName, newParentName, 1)
-	// }
-
-	// Open the Directory
-	files, err := os.ReadDir(basePath)
-	if err != nil {
-		fmt.Println("ReadDir err: " + err.Error())
-	}
-
-	for _, file := range files {
-		if !file.IsDir() {
-			dat, err := os.ReadFile(basePath + file.Name())
-			if err != nil {
-				// Check if file is symlink
-				linkedFolder, erro := os.Readlink(basePath + file.Name())
-				if erro != nil {
-					// can't read file or symlink
-					fmt.Println("ReadFile err: " + erro.Error())
-				}
-
-				// If symlink, copy all contents from symlinked directory to folder named after symlink
-				addNpmFiles(w, linkedFolder, baseInZip+file.Name()+"/")
-			}
-
-			// Add some files to the archive.
-			f, err := w.Create(baseInZip + file.Name())
-			if err != nil {
-				fmt.Println(err)
-			}
-			_, err = f.Write(dat)
-			if err != nil {
-				fmt.Println(err)
-			}
-		} else if file.IsDir() && file.Name() == ".git" {
-			// Git metadata isn't part of the artifact, and its index and logs
-			// change on every clone, which would make zips non-reproducible.
-			continue
-		} else if file.IsDir() {
-			// Recurse
-			newBase := basePath + file.Name() + "/"
-			addNpmFiles(w, newBase, baseInZip+file.Name()+"/")
-		}
-	}
 }
 
 // nodeInstall picks the install command for the lockfile in dir, so installs

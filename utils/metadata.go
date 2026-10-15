@@ -4,6 +4,7 @@ import (
 	"Builder/spinner"
 	"crypto/sha256"
 	"fmt"
+	"io"
 	"runtime"
 	"sync"
 
@@ -251,14 +252,18 @@ func GetArtifactChecksum() string {
 
 		for _, file := range files {
 			if file.Name() != "metadata.json" && file.Name() != "metadata.yaml" {
-				// Get checksum of artifact
-				artifact, err := os.ReadFile(artifactDir + "/" + file.Name())
+				// Get checksum of artifact (streamed; artifacts can be large)
+				f, err := os.Open(artifactDir + "/" + file.Name())
 				if err != nil {
 					spinner.LogMessage(err.Error(), "fatal")
 				}
-
-				sum := sha256.Sum256(artifact)
-				checksum = fmt.Sprintf("%x", sum)
+				h := sha256.New()
+				_, err = io.Copy(h, f)
+				f.Close()
+				if err != nil {
+					spinner.LogMessage("could not checksum "+file.Name()+": "+err.Error(), "fatal")
+				}
+				checksum = fmt.Sprintf("%x", h.Sum(nil))
 
 				var artifactObj Artifacts
 				artifactObj.name = file.Name()
