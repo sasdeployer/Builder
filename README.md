@@ -183,6 +183,24 @@ When `builder` or `builder config` finds a cached build with the same key, it re
 
 Compressed (`-z`) and Docker (`-D`) builds bypass the cache.
 
+## Machine Mode (agents, CI, other services)
+
+Add `--json` (at the end of the command) or set `BUILDER_OUTPUT=json` to get one JSON result on stdout; everything else Builder prints goes to stderr. The exit code is 0 on success and 1 on failure.
+
+- **Success:** `status`, `command`, `durationMs`, `project`, `projectType`, `buildId` (the same ID stored in `builds.json`), `artifactDir`, every artifact with `sha256` and `size`, the `metadataPath`, `provenancePath` and `logsPath`, the cache decision (`hit`, `key`, which build produced the artifacts), the determinism decision (whether dependencies were locked, and why not), and for `builder docker` the image repository and tags.
+- **Failure:** the same fields plus `error.message`, `error.at` (where Builder stopped) and `error.logTail` (the last 20 lines of the build log).
+
+When output isn't a terminal, the spinner is silent. Builder never prompts in machine mode: a C# solution with several projects fails with the list of projects (set `buildfile` in builder.yaml) instead of waiting for input. `builder` and `builder docker` fail (exit 1) when there is no builder.yaml in the current directory.
+
+## Build Speed
+
+The build tools do the building; Builder keeps its overhead small:
+
+- **Snapshots are copy-on-write clones** where the filesystem supports them (APFS `clonefile`, Linux reflinks), with a regular copy as fallback, so the source snapshot, workspace and temp copies cost almost nothing until a file changes.
+- **A finished build's folder is renamed, not copied.**
+- **Node/Python/Ruby dependency zips** are compressed in parallel and streamed (same format, same compression level), then moved into the artifact dir.
+- **Artifact checksums are streamed**, never loaded into memory whole.
+
 ## Builder Funcionalty Layout
 
 ### main.go:
