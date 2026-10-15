@@ -1,19 +1,18 @@
-// takes in code as arg from go
-//run go build on code given
-
 package utils
 
 import (
+	"Builder/spinner"
 	"os"
 	"os/exec"
+	"strings"
 )
 
-//CopyDir creates exe from file passed in as arg
+// CopyDir copies the contents of the hidden dir into the workspace dir.
 func CopyDir() {
-
-	//copies contents of .hidden to workspace
 	hiddenDir := os.Getenv("BUILDER_HIDDEN_DIR")
 	workspaceDir := os.Getenv("BUILDER_WORKSPACE_DIR")
-	exec.Command("cp", "-a", hiddenDir+"/.", workspaceDir).Run()
+	cmd := exec.Command("cp", "-a", hiddenDir+"/.", workspaceDir)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		spinner.LogMessage("copying source into workspace failed: "+err.Error()+": "+strings.TrimSpace(string(out)), "fatal")
+	}
 }
-

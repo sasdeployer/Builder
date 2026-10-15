@@ -98,6 +98,7 @@ func getLogsJSON(path string) string {
 
 	var lines []string
 	scanner := bufio.NewScanner(logsFile)
+	scanner.Buffer(make([]byte, 0, 64*1024), MaxLogLine)
 	for scanner.Scan() {
 		lines = append(lines, scanner.Text())
 	}

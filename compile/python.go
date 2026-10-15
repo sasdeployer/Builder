@@ -10,6 +10,7 @@ import (
 	"archive/zip"
 	"bufio"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -99,6 +100,7 @@ func Python() {
 	done := make(chan struct{})
 
 	scanner := bufio.NewScanner(stdout)
+	scanner.Buffer(make([]byte, 0, 64*1024), utils.MaxLogLine)
 
 	// Use the scanner to scan the output line by line and log it
 	// It's running in a goroutine so that it doesn't block
@@ -109,6 +111,10 @@ func Python() {
 			spinner.Spinner.Stop()
 			locallogger.Info(line)
 			spinner.Spinner.Start()
+		}
+		if err := scanner.Err(); err != nil {
+			locallogger.Warn("build output capture stopped: " + err.Error())
+			io.Copy(io.Discard, stdout)
 		}
 
 		// We're all done, unblock the channel
