@@ -153,6 +153,36 @@ Please note that all keys must be lowercase
 - "BUILDER_ARTIFACT_LIST": user defined list of produced artifacts ("myProject.exe", "artifact.rpm,artifact2.rpm", etc)
 - "BUILDER_OUTPUT_PATH": user defined output path for artifact
 
+## Reproducible Builds, Cache & Provenance
+
+Builder aims for the same source to produce byte-identical artifacts, so a cached artifact is exactly what a fresh build would produce.
+
+- **Pinned build environment** (applies to default and custom build commands): `SOURCE_DATE_EPOCH` is set to the commit time; Go builds get `GOFLAGS=-trimpath -buildvcs=false`; Ruby gets `BUNDLE_FROZEN=true` when `Gemfile.lock` exists. Values you already set are kept.
+- **Lockfile-respecting defaults:** Node uses `npm ci` with `package-lock.json`, or `pnpm`/`yarn`/`bun install --frozen-lockfile` with their lockfiles. Rust uses `cargo build -r --locked` when `Cargo.lock` exists.
+- **Dependency zips exclude `.git`.**
+
+Every build writes `provenance.json` next to its artifacts: an in-toto Statement with a SLSA v1 provenance predicate (unsigned). It records artifact sha256s, the full commit and a content hash of the source tree, lockfile hashes, the build config, toolchain versions, platform, the Builder revision, start/finish times, whether dependencies were locked (and why not), and who requested the build (a person, or an agent session such as Claude Code).
+
+Builds are content-addressed: the key hashes the source tree (minus `.git` and `builder.yaml`), the build-relevant builder.yaml fields, toolchain versions, platform, build env and the Builder revision. **A build is only cached when its dependencies are verifiably locked:**
+
+| Project type | Counts as locked when |
+|---|---|
+| Go | always (modules verify `go.sum`) |
+| Node | `npm ci`, or `--frozen-lockfile` / `--immutable` |
+| Python | `uv sync --frozen`/`--locked`, `poetry install` with `poetry.lock`, pip `--require-hashes`, or every line of `requirements.txt` pinned with `==` |
+| Ruby | `Gemfile.lock` exists |
+| Rust | cargo runs with `--locked` |
+| Java, C/C++, C# | not verified by Builder |
+
+When `builder` or `builder config` finds a cached build with the same key, it restores the artifacts (re-verifying checksums) instead of compiling. `builder init` stores into the cache but can't hit it, because the project type isn't known until the source is inspected.
+
+- "BUILDER_CACHE": `off` skips the cache; `force` also caches builds whose locking Builder can't verify
+- "BUILDER_CACHE_DIR": cache location (default `~/.builder/cache`)
+- "BUILDER_REQUESTED_BY" / "BUILDER_REQUESTER_KIND": who requested the build (`human` or `agent`); overrides auto-detection
+- "BUILDER_TASK": optional task, ticket or PR the build is for
+
+Compressed (`-z`) and Docker (`-D`) builds bypass the cache.
+
 ## Builder Funcionalty Layout
 
 ### main.go:
