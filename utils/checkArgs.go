@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 )
 
 // CheckArgs is...
@@ -17,10 +18,15 @@ func CheckArgs() {
 		spinner.LogMessage("No Repo Url Provided", "fatal")
 	}
 
+	// Reject option-shaped values so they can't be read as git flags
+	if strings.HasPrefix(repo, "-") {
+		spinner.LogMessage("Invalid repo url: "+repo, "fatal")
+	}
+
 	//check to see if repo exists
 	//git ls-remote lists refs/heads & tags of a repo, if none exists, exit status thrown
 	//returns the exit status in err
-	_, err := exec.Command("git", "ls-remote", repo, "-q").Output()
+	_, err := exec.Command("git", "ls-remote", "-q", repo).Output()
 	if err != nil {
 		spinner.LogMessage("Provided repository does not exist", "fatal")
 	}

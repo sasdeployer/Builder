@@ -187,6 +187,9 @@ func findPath(file string) string {
 	// If file not found in top level dir check subdirs
 	if filePath == "" {
 		err = filepath.Walk(dirPath, func(path string, f os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
 			if strings.EqualFold(f.Name(), file) {
 				filePath = path
 			}

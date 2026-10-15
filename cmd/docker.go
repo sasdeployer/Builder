@@ -7,6 +7,7 @@ import (
 	"Builder/utils"
 	"Builder/utils/log"
 	"Builder/yaml"
+	"io"
 
 	"bufio"
 	"encoding/json"
@@ -82,14 +83,6 @@ func Docker() {
 	// Start loading spinner
 	spinner.Spinner.Start()
 
-	// If builder_data folder already exists, remove it
-	if _, err := os.Stat(path + "/" + "builder_data"); err == nil {
-		e := os.RemoveAll(path + "/" + "builder_data")
-		if e != nil {
-			spinner.LogMessage("Couldn't remove builder data from previous build: "+e.Error(), "error")
-		}
-	}
-
 	//checks if yaml file exists in path, if it does, continue
 	if _, err := os.Stat(path + "/" + "builder.yaml"); err == nil {
 		//parse builder.yaml
@@ -142,6 +135,7 @@ func Docker() {
 		done := make(chan struct{})
 
 		scanner := bufio.NewScanner(stdout)
+		scanner.Buffer(make([]byte, 0, 64*1024), utils.MaxLogLine)
 
 		//Set up local logger
 		localPath, _ := os.LookupEnv("BUILDER_LOGS_DIR")
@@ -157,13 +151,17 @@ func Docker() {
 				spinner.Spinner.Stop()
 				locallogger.Info(line)
 
-				if strings.Contains(line, "docker"){
+				if strings.Contains(line, "docker") {
 					if strings.Contains(line, "permission denied") {
 						spinner.LogMessage("Docker might not have the right permissions to run this command.  For Mac users, try running `sudo chown -R $(whoami) ~/.docker` and for Linux users, try adding your user to the docker group with `sudo usermod -aG docker $(whoami)`", "fatal")
 					}
 				}
 
 				spinner.Spinner.Start()
+			}
+			if err := scanner.Err(); err != nil {
+				locallogger.Warn("build output capture stopped: " + err.Error())
+				io.Copy(io.Discard, stdout)
 			}
 
 			// We're all done, unblock the channel
@@ -208,6 +206,7 @@ func Docker() {
 		copyMetadataFileFromContainer := make(chan struct{})
 
 		scanner = bufio.NewScanner(stdout)
+		scanner.Buffer(make([]byte, 0, 64*1024), utils.MaxLogLine)
 
 		// Use the scanner to scan the output line by line and log it
 		// It's running in a goroutine so that it doesn't block
@@ -219,6 +218,10 @@ func Docker() {
 				spinner.Spinner.Stop()
 				locallogger.Info(line)
 				spinner.Spinner.Start()
+			}
+			if err := scanner.Err(); err != nil {
+				locallogger.Warn("build output capture stopped: " + err.Error())
+				io.Copy(io.Discard, stdout)
 			}
 
 			// We're all done, unblock the channel
@@ -235,7 +238,10 @@ func Docker() {
 
 		// Wait for cmd to finish
 		if err := cmd.Wait(); err != nil {
-			spinner.LogMessage(err.Error(), "fatal")
+			containerName := name + "_" + fmt.Sprint(startTime.Unix())
+			exec.Command("docker", "rm", containerName).Run()
+			spinner.LogMessage("The image built ("+containerName+":latest) but contains no Builder record at /root/.builder/builds.json. "+
+				"The Dockerfile used by `builder docker` must run `builder` during the image build: "+err.Error(), "fatal")
 		}
 
 		// Retrieve build info from file copied from container
@@ -246,7 +252,12 @@ func Docker() {
 
 		// Decode json into interface
 		var metadata BuildMetadata
-		json.NewDecoder(strings.NewReader(string(data))).Decode(&metadata)
+		if err := json.NewDecoder(strings.NewReader(string(data))).Decode(&metadata); err != nil {
+			spinner.LogMessage("Can't read build record copied from container: "+err.Error(), "fatal")
+		}
+		if metadata.ProjectName == "" {
+			spinner.LogMessage("Build record copied from container has no ProjectName; refusing to tag the image", "fatal")
+		}
 
 		gatheredStartTime, err := time.Parse(time.RFC850, metadata.StartTime)
 		if err != nil {
@@ -273,6 +284,7 @@ func Docker() {
 		copyLogsFileFromContainer := make(chan struct{})
 
 		scanner = bufio.NewScanner(stdout)
+		scanner.Buffer(make([]byte, 0, 64*1024), utils.MaxLogLine)
 
 		// Use the scanner to scan the output line by line and log it
 		// It's running in a goroutine so that it doesn't block
@@ -284,6 +296,10 @@ func Docker() {
 				spinner.Spinner.Stop()
 				locallogger.Info(line)
 				spinner.Spinner.Start()
+			}
+			if err := scanner.Err(); err != nil {
+				locallogger.Warn("build output capture stopped: " + err.Error())
+				io.Copy(io.Discard, stdout)
 			}
 
 			// We're all done, unblock the channel

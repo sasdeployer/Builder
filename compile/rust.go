@@ -11,6 +11,7 @@ import (
 	"Builder/utils/log"
 	"Builder/yaml"
 	"bufio"
+	"io"
 	"os"
 	"os/exec"
 	"runtime"
@@ -92,6 +93,7 @@ func Rust(filePath string) {
 	done := make(chan struct{})
 
 	scanner := bufio.NewScanner(stdout)
+	scanner.Buffer(make([]byte, 0, 64*1024), utils.MaxLogLine)
 
 	// Use the scanner to scan the output line by line and log it
 	// It's running in a goroutine so that it doesn't block
@@ -102,6 +104,10 @@ func Rust(filePath string) {
 			spinner.Spinner.Stop()
 			locallogger.Info(line)
 			spinner.Spinner.Start()
+		}
+		if err := scanner.Err(); err != nil {
+			locallogger.Warn("build output capture stopped: " + err.Error())
+			io.Copy(io.Discard, stdout)
 		}
 
 		// We're all done, unblock the channel
@@ -131,7 +137,7 @@ func Rust(filePath string) {
 	// Update parent dir name to include start time
 	fullPath = directory.UpdateParentDirName(fullPath)
 
-	if os.Args[1] == "init" || os.Args[1] == "config" {
+	if len(os.Args) > 1 && (os.Args[1] == "init" || os.Args[1] == "config") {
 		repoPath := "./" + strings.TrimSuffix(utils.GetName(), ".git")
 
 		if configPath != "" {
@@ -170,6 +176,7 @@ func packageRustArtifact(fullPath string) {
 		extName := ""
 		tomlfile, _ := os.Open(fullPath + "/" + os.Getenv("BUILDER_BUILD_FILE"))
 		scanner := bufio.NewScanner(tomlfile)
+		scanner.Buffer(make([]byte, 0, 64*1024), utils.MaxLogLine)
 		for scanner.Scan() {
 			line := scanner.Text()
 			if strings.HasPrefix(line, "name = ") {
@@ -177,6 +184,9 @@ func packageRustArtifact(fullPath string) {
 			}
 		}
 		defer tomlfile.Close()
+		if extName == "" {
+			spinner.LogMessage("Could not read the package name from "+os.Getenv("BUILDER_BUILD_FILE")+".  Please specify the name(s) in the artifactlist of the builder.yaml", "fatal")
+		}
 		os.Setenv("BUILDER_ARTIFACT_NAMES", extName)
 		artifactList = extName
 
@@ -188,7 +198,7 @@ func packageRustArtifact(fullPath string) {
 
 	//copy artifact(s), then remove artifact(s) from workspace
 	for _, artifact := range artifactArray {
-		exec.Command("cp", "-a", fullPath+"/target/release/"+artifact, artifactDir).Run()
+		runChecked("fatal", "cp", "-a", fullPath+"/target/release/"+artifact, artifactDir)
 
 		// If outputpath provided also cp artifacts to that location
 		if outputPath != "" {
@@ -199,12 +209,12 @@ func packageRustArtifact(fullPath string) {
 				}
 			}
 
-			exec.Command("cp", "-a", fullPath+"/target/release/"+artifact, outputPath).Run()
+			runChecked("fatal", "cp", "-a", fullPath+"/target/release/"+artifact, outputPath)
 
 			spinner.LogMessage("Artifact(s) copied to output path provided", "info")
 		}
 
-		exec.Command("rm", fullPath+"/target/release/"+artifact).Run()
+		runChecked("warn", "rm", fullPath+"/target/release/"+artifact)
 	}
 
 	//create metadata
@@ -215,19 +225,19 @@ func packageRustArtifact(fullPath string) {
 		artifact.ZipArtifactDir()
 
 		//copy zip into open artifactDir, delete zip in workspace (keeps entire artifact contained)
-		exec.Command("cp", "-a", artifactDir+archiveExt, artifactDir).Run()
-		exec.Command("rm", artifactDir+archiveExt).Run()
+		runChecked("warn", "cp", "-a", artifactDir+archiveExt, artifactDir)
+		runChecked("warn", "rm", artifactDir+archiveExt)
 
 		// send artifact to user specified path or send to parent directory
 		artifactStamp := os.Getenv("BUILDER_ARTIFACT_STAMP")
 		outputPath := os.Getenv("BUILDER_OUTPUT_PATH")
 		if outputPath != "" {
-			exec.Command("cp", "-a", artifactDir+"/"+artifactStamp+archiveExt, outputPath).Run()
+			runChecked("fatal", "cp", "-a", artifactDir+"/"+artifactStamp+archiveExt, outputPath)
 		} else {
-			exec.Command("cp", "-a", artifactDir+"/"+artifactStamp+archiveExt, os.Getenv("BUILDER_PARENT_DIR")).Run()
+			runChecked("fatal", "cp", "-a", artifactDir+"/"+artifactStamp+archiveExt, os.Getenv("BUILDER_PARENT_DIR"))
 		}
 
 		//remove artifact directory
-		exec.Command("rm", "-r", artifactDir).Run()
+		runChecked("warn", "rm", "-r", artifactDir)
 	}
 }

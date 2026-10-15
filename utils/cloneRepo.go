@@ -23,8 +23,7 @@ func CloneRepo(to string) {
 			spinner.LogMessage("Could not create new repo directory: "+errDir.Error(), "fatal")
 		}
 
-		cmd := exec.Command("git", "clone", repo, toPath)
-		cmd.Run()
+		gitClone(repo, toPath, "")
 
 		// Get branch name
 		os.Setenv("REPO_BRANCH_NAME", GetBranchName(toPath))
@@ -33,9 +32,7 @@ func CloneRepo(to string) {
 
 		if bFlagExists {
 			if branchExists {
-				cmd := exec.Command("git", "clone", "-b", branchName, "--single-branch", repo, toPath)
-				cmd.Run()
-				spinner.LogMessage("git clone -b "+branchName+" --single-branch "+repo, "info")
+				gitClone(repo, toPath, branchName)
 
 				// Get branch name
 				os.Setenv("REPO_BRANCH_NAME", branchName)
@@ -43,20 +40,31 @@ func CloneRepo(to string) {
 				spinner.LogMessage("Branch does not exists", "fatal")
 			}
 		} else if branchExists { // Repo branch given in builder.yaml not by -b flag
-			cmd := exec.Command("git", "clone", "-b", branchName, "--single-branch", repo, toPath)
-			cmd.Run()
-			spinner.LogMessage("git clone -b "+branchName+" --single-branch "+repo, "info")
+			gitClone(repo, toPath, branchName)
 
 			// Get branch name
 			os.Setenv("REPO_BRANCH_NAME", branchName)
 		} else {
-			cmd := exec.Command("git", "clone", repo, toPath)
-			cmd.Run()
-			spinner.LogMessage("git clone "+repo, "info")
+			gitClone(repo, toPath, "")
 
 			// Get branch name
 			os.Setenv("REPO_BRANCH_NAME", GetBranchName(toPath))
 		}
+	}
+}
+
+// gitClone clones repo into dest (optionally a single branch) and exits with
+// git's own error output if the clone fails.
+func gitClone(repo, dest, branch string) {
+	args := []string{"clone"}
+	if branch != "" {
+		args = append(args, "-b", branch, "--single-branch")
+	}
+	args = append(args, "--", repo, dest)
+	cmd := exec.Command("git", args...)
+	spinner.LogMessage("running command: "+cmd.String(), "info")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		spinner.LogMessage("git clone failed: "+err.Error()+": "+strings.TrimSpace(string(out)), "fatal")
 	}
 }
 
@@ -85,12 +93,14 @@ func bFlagAndBranchExists() (bool, bool, string) {
 	return bFlagExists, branchExists, branchName
 }
 
+// GetBranchName returns the checked-out branch in path, or "" if it can't be read.
 func GetBranchName(path string) string {
-	branchCmd := exec.Command("git", "branch")
-	branchCmd.Dir = path
-	branch, _ := branchCmd.Output()
-
-	formatName := strings.TrimSuffix(string(branch), "\n")
-
-	return formatName[2:]
+	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+	cmd.Dir = path
+	out, err := cmd.Output()
+	if err != nil {
+		spinner.LogMessage("could not read branch name: "+err.Error(), "warn")
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }

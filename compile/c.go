@@ -8,6 +8,7 @@ import (
 	"Builder/utils/log"
 	"Builder/yaml"
 	"bufio"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -82,6 +83,7 @@ func C(filePath string) {
 		preBuildDone := make(chan struct{})
 
 		preBuildScanner := bufio.NewScanner(preBuildStdout)
+		preBuildScanner.Buffer(make([]byte, 0, 64*1024), utils.MaxLogLine)
 
 		// Use the scanner to scan the output line by line and log it
 		// It's running in a goroutine so that it doesn't block
@@ -93,6 +95,10 @@ func C(filePath string) {
 				spinner.Spinner.Stop()
 				locallogger.Info(line)
 				spinner.Spinner.Start()
+			}
+			if err := preBuildScanner.Err(); err != nil {
+				locallogger.Warn("build output capture stopped: " + err.Error())
+				io.Copy(io.Discard, preBuildStdout)
 			}
 
 			// We're all done, unblock the channel
@@ -134,6 +140,7 @@ func C(filePath string) {
 		configDone := make(chan struct{})
 
 		configScanner := bufio.NewScanner(configStdout)
+		configScanner.Buffer(make([]byte, 0, 64*1024), utils.MaxLogLine)
 
 		// Use the scanner to scan the output line by line and log it
 		// It's running in a goroutine so that it doesn't block
@@ -145,6 +152,10 @@ func C(filePath string) {
 				spinner.Spinner.Stop()
 				locallogger.Info(line)
 				spinner.Spinner.Start()
+			}
+			if err := configScanner.Err(); err != nil {
+				locallogger.Warn("build output capture stopped: " + err.Error())
+				io.Copy(io.Discard, configStdout)
 			}
 
 			// We're all done, unblock the channel
@@ -200,6 +211,7 @@ func C(filePath string) {
 	done := make(chan struct{})
 
 	scanner := bufio.NewScanner(stdout)
+	scanner.Buffer(make([]byte, 0, 64*1024), utils.MaxLogLine)
 
 	// Use the scanner to scan the output line by line and log it
 	// It's running in a goroutine so that it doesn't block
@@ -211,6 +223,10 @@ func C(filePath string) {
 			spinner.Spinner.Stop()
 			locallogger.Info(line)
 			spinner.Spinner.Start()
+		}
+		if err := scanner.Err(); err != nil {
+			locallogger.Warn("build output capture stopped: " + err.Error())
+			io.Copy(io.Discard, stdout)
 		}
 
 		// We're all done, unblock the channel
@@ -241,7 +257,7 @@ func C(filePath string) {
 	fullPath = directory.UpdateParentDirName(fullPath)
 
 	//creates default builder.yaml if it doesn't exist
-	if os.Args[1] == "init" || os.Args[1] == "config" {
+	if len(os.Args) > 1 && (os.Args[1] == "init" || os.Args[1] == "config") {
 		repoPath := "./" + strings.TrimSuffix(utils.GetName(), ".git")
 
 		if configPath != "" {

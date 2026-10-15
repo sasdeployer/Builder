@@ -1,12 +1,14 @@
 package gui
 
 import (
+	"Builder/utils"
 	"bufio"
 	_ "embed"
 	"encoding/base64"
 	"log"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
@@ -124,6 +126,10 @@ func Gui() {
 	}
 
 	getLogsJSON := func(path string) string {
+		// The page may only read Builder log files.
+		if filepath.Base(path) != "logs.json" {
+			return "[]"
+		}
 		logsFile, err := os.Open(path)
 		if err != nil {
 			log.Fatal(err)
@@ -132,6 +138,7 @@ func Gui() {
 
 		var lines []string
 		scanner := bufio.NewScanner(logsFile)
+		scanner.Buffer(make([]byte, 0, 64*1024), utils.MaxLogLine)
 		for scanner.Scan() {
 			lines = append(lines, scanner.Text())
 		}

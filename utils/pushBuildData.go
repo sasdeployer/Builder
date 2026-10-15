@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 )
 
 func PushBuildData() {
@@ -41,17 +42,14 @@ func PushBuildData() {
 	responseBody := bytes.NewBuffer(bodyJSON)
 
 	// Send metadata+logs to user provided url
-	req, _ := http.NewRequest("POST", pushURL, responseBody)
-	req.Header.Add("Content-Type", "application/json")
-
-	client := &http.Client{}
-	resp, errSend := client.Do(req)
-	if errSend != nil {
-		spinner.LogMessage("Error sending build metadata and logs: "+errSend.Error(), "fatal")
-	} else {
-		spinner.LogMessage("Metadata+logs data pushed to provided url", "info")
+	client := &http.Client{Timeout: 10 * time.Minute}
+	req, err := http.NewRequest("POST", pushURL, responseBody)
+	if err != nil {
+		spinner.LogMessage("Invalid push url: "+err.Error(), "fatal")
 	}
-	defer resp.Body.Close()
+	req.Header.Add("Content-Type", "application/json")
+	sendPush(client, req, "build metadata and logs")
+	spinner.LogMessage("Metadata+logs data pushed to provided url", "info")
 
 	// Send artifact(s) to user provided url
 	artifactList := os.Getenv("BUILDER_ARTIFACT_LIST")
@@ -63,30 +61,42 @@ func PushBuildData() {
 	for i, artifact := range artifactArray {
 		part, err := m.CreateFormFile("artifact"+fmt.Sprint(i), artifact)
 		if err != nil {
-			spinner.LogMessage("Error posting artifact(s) to url.", "fatal")
+			spinner.LogMessage("Error posting artifact(s) to url: "+err.Error(), "fatal")
 		}
 
 		file, err := os.Open(artifactDir + "/" + artifact)
 		if err != nil {
 			spinner.LogMessage("Error posting artifact(s) to url. Couldn't open artifact file: "+err.Error(), "fatal")
 		}
-		defer file.Close()
-		if _, err = io.Copy(part, file); err != nil {
-			return
+		_, err = io.Copy(part, file)
+		file.Close()
+		if err != nil {
+			spinner.LogMessage("Error reading artifact "+artifact+": "+err.Error(), "fatal")
 		}
 	}
 	m.Close()
 
-	artifactReq, _ := http.NewRequest("POST", pushURL, buf)
-	req.Header.Add("Content-Type", m.FormDataContentType())
-
-	artifactResp, errSend := client.Do(artifactReq)
-	if errSend != nil {
-		spinner.LogMessage("Error sending artifact(s) to push url: "+errSend.Error(), "fatal")
+	artifactReq, err := http.NewRequest("POST", pushURL, buf)
+	if err != nil {
+		spinner.LogMessage("Invalid push url: "+err.Error(), "fatal")
 	}
-	defer artifactResp.Body.Close()
+	artifactReq.Header.Add("Content-Type", m.FormDataContentType())
+	sendPush(client, artifactReq, "artifact(s)")
 
 	spinner.LogMessage("artifact(s) pushed to provided url", "info")
+}
+
+// sendPush sends req and fails the build on a transport error or a non-2xx response.
+func sendPush(client *http.Client, req *http.Request, what string) {
+	resp, err := client.Do(req)
+	if err != nil {
+		spinner.LogMessage("Error sending "+what+" to push url: "+err.Error(), "fatal")
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		spinner.LogMessage("Push url rejected "+what+": "+resp.Status+": "+strings.TrimSpace(string(body)), "fatal")
+	}
 }
 
 func getLogsJSON(path string) string {
@@ -98,6 +108,7 @@ func getLogsJSON(path string) string {
 
 	var lines []string
 	scanner := bufio.NewScanner(logsFile)
+	scanner.Buffer(make([]byte, 0, 64*1024), MaxLogLine)
 	for scanner.Scan() {
 		lines = append(lines, scanner.Text())
 	}

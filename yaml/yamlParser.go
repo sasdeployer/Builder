@@ -30,7 +30,8 @@ func YamlParser(yamlPath string) {
 	//unpacks yaml file in a map int{}
 	err = yaml.Unmarshal([]byte(source), &f)
 	if err != nil {
-		spinner.LogMessage(err.Error(), "error")
+		removeTempDir()
+		spinner.LogMessage("invalid builder.yaml: "+err.Error(), "fatal")
 	}
 
 	//pass map int{} to callback that sets env vars

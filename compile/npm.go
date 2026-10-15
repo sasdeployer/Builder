@@ -10,6 +10,7 @@ import (
 	"archive/zip"
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strconv"
@@ -95,6 +96,7 @@ func Npm() {
 	done := make(chan struct{})
 
 	scanner := bufio.NewScanner(stdout)
+	scanner.Buffer(make([]byte, 0, 64*1024), utils.MaxLogLine)
 
 	// Use the scanner to scan the output line by line and log it
 	// It's running in a goroutine so that it doesn't block
@@ -105,6 +107,10 @@ func Npm() {
 			spinner.Spinner.Stop()
 			locallogger.Info(line)
 			spinner.Spinner.Start()
+		}
+		if err := scanner.Err(); err != nil {
+			locallogger.Warn("build output capture stopped: " + err.Error())
+			io.Copy(io.Discard, stdout)
 		}
 
 		// We're all done, unblock the channel
@@ -138,7 +144,7 @@ func Npm() {
 	workspaceDir = os.Getenv("BUILDER_WORKSPACE_DIR")
 	tempWorkspace = workspaceDir + "/temp/"
 
-	if os.Args[1] == "init" || os.Args[1] == "config" {
+	if len(os.Args) > 1 && (os.Args[1] == "init" || os.Args[1] == "config") {
 		repoPath := "./" + strings.TrimSuffix(utils.GetName(), ".git")
 
 		if configPath != "" {
@@ -198,7 +204,10 @@ func packageNpmArtifact(fullPath string) {
 	outputPath := os.Getenv("BUILDER_OUTPUT_PATH")
 
 	//find artifact by extension
-	_, extName := artifact.ExtExistsFunction(workspaceDir, ".zip")
+	found, extName := artifact.ExtExistsFunction(workspaceDir, ".zip")
+	if !found {
+		spinner.LogMessage("Build finished but produced no artifact (expected the dependency zip in "+workspaceDir+").  Check the build command, or set artifactlist in builder.yaml", "fatal")
+	}
 	os.Setenv("BUILDER_ARTIFACT_NAMES", extName)
 
 	//copy artifact, then remove artifact in workspace

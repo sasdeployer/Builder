@@ -4,6 +4,7 @@ import (
 	"Builder/spinner"
 	"os"
 	"os/exec"
+	"strings"
 )
 
 func GetRepoURL() string {
@@ -30,7 +31,7 @@ func GetRepoURL() string {
 			return ""
 		}
 
-		repo = string(out[:len(out)-1]) // Get rid of last char because it is a newline char
+		repo = strings.TrimSpace(string(out))
 
 		if repo == "" {
 			if os.Getenv("GIT_URL") != "" {

@@ -11,6 +11,7 @@ import (
 	"Builder/utils/log"
 	"Builder/yaml"
 	"bufio"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -102,6 +103,7 @@ func Go(filePath string) {
 	done := make(chan struct{})
 
 	scanner := bufio.NewScanner(stdout)
+	scanner.Buffer(make([]byte, 0, 64*1024), utils.MaxLogLine)
 
 	// Use the scanner to scan the output line by line and log it
 	// It's running in a goroutine so that it doesn't block
@@ -112,6 +114,10 @@ func Go(filePath string) {
 			spinner.Spinner.Stop()
 			locallogger.Info(line)
 			spinner.Spinner.Start()
+		}
+		if err := scanner.Err(); err != nil {
+			locallogger.Warn("build output capture stopped: " + err.Error())
+			io.Copy(io.Discard, stdout)
 		}
 
 		// We're all done, unblock the channel
@@ -141,7 +147,7 @@ func Go(filePath string) {
 	// Update parent dir name to include start time
 	fullPath = directory.UpdateParentDirName(fullPath)
 
-	if os.Args[1] == "init" || os.Args[1] == "config" {
+	if len(os.Args) > 1 && (os.Args[1] == "init" || os.Args[1] == "config") {
 		repoPath := "./" + strings.TrimSuffix(utils.GetName(), ".git")
 
 		if configPath != "" {
@@ -175,7 +181,10 @@ func packageGoArtifact(fullPath string) {
 	outputPath := os.Getenv("BUILDER_OUTPUT_PATH")
 
 	//find artifact by extension
-	_, extName := artifact.ExtExistsFunction(fullPath, artifactExt)
+	found, extName := artifact.ExtExistsFunction(fullPath, artifactExt)
+	if !found {
+		spinner.LogMessage("Build finished but produced no artifact (expected an executable named after the project in "+fullPath+").  Check the build command, or set artifactlist in builder.yaml", "fatal")
+	}
 	os.Setenv("BUILDER_ARTIFACT_NAMES", extName)
 
 	//copy artifact, then remove artifact in workspace

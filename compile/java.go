@@ -8,6 +8,7 @@ import (
 	"Builder/utils/log"
 	"Builder/yaml"
 	"bufio"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -91,6 +92,7 @@ func Java(filePath string) {
 	done := make(chan struct{})
 
 	scanner := bufio.NewScanner(stdout)
+	scanner.Buffer(make([]byte, 0, 64*1024), utils.MaxLogLine)
 
 	// Use the scanner to scan the output line by line and log it
 	// It's running in a goroutine so that it doesn't block
@@ -101,6 +103,10 @@ func Java(filePath string) {
 			spinner.Spinner.Stop()
 			locallogger.Info(line)
 			spinner.Spinner.Start()
+		}
+		if err := scanner.Err(); err != nil {
+			locallogger.Warn("build output capture stopped: " + err.Error())
+			io.Copy(io.Discard, stdout)
 		}
 
 		// We're all done, unblock the channel
@@ -131,7 +137,7 @@ func Java(filePath string) {
 	fullPath = directory.UpdateParentDirName(fullPath)
 
 	//creates default builder.yaml if it doesn't exist
-	if os.Args[1] == "init" || os.Args[1] == "config" {
+	if len(os.Args) > 1 && (os.Args[1] == "init" || os.Args[1] == "config") {
 		repoPath := "./" + strings.TrimSuffix(utils.GetName(), ".git")
 
 		if configPath != "" {
@@ -161,7 +167,10 @@ func packageJavaArtifact(fullPath string) {
 	outputPath := os.Getenv("BUILDER_OUTPUT_PATH")
 
 	//find artifact by extension
-	_, extName := artifact.ExtExistsFunction(fullPath, ".jar")
+	found, extName := artifact.ExtExistsFunction(fullPath, ".jar")
+	if !found {
+		spinner.LogMessage("Build finished but produced no artifact (expected a .jar file in "+fullPath+").  Check the build command, or set artifactlist in builder.yaml", "fatal")
+	}
 	os.Setenv("BUILDER_ARTIFACT_NAMES", extName)
 
 	//copy artifact, then remove artifact in workspace

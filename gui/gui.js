@@ -1,3 +1,9 @@
+// Escape build data before inserting it as HTML; log lines and metadata come
+// from the repo being built.
+const esc = (v) => String(v ?? "").replace(/[&<>"'`]/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;", "`": "&#96;",
+})[c]);
+
 const searchBar = document.getElementById("searchBar");
 
 
@@ -60,7 +66,7 @@ function createBuildsListTable(buildsJSON) {
     for (let build in builds.reverse()) {
         text += "<tr>"
 
-        let tdString = "<td class='buildsListTableCell' onclick='displayDetailsPage(`" + builds[build].BuildID + "`)'>"
+        let tdString = "<td class='buildsListTableCell' onclick='displayDetailsPage(`" + esc(builds[build].BuildID) + "`)'>"
         let dateObj = Date.parse(builds[build].EndTime)
         let time = new Date(dateObj).toUTCString();
 
@@ -98,11 +104,11 @@ function createBuildsListTable(buildsJSON) {
 
         // Fill in table data
         text += tdString + time + "</td>"
-        text += tdString + builds[build].UserName + "</td>"
-        text += tdString + builds[build].ArtifactName + "</td>"
-        text += tdString + builds[build].ProjectName + "</td>"
-        text += tdString + builds[build].MasterGitHash.slice(0,7) + "</td>"
-        text += tdString + builds[build].BuildID + "</td>"
+        text += tdString + esc(builds[build].UserName) + "</td>"
+        text += tdString + esc(builds[build].ArtifactName) + "</td>"
+        text += tdString + esc(builds[build].ProjectName) + "</td>"
+        text += tdString + esc(builds[build].MasterGitHash.slice(0,7)) + "</td>"
+        text += tdString + esc(builds[build].BuildID) + "</td>"
 
         text += "</tr>"
     }
@@ -241,21 +247,21 @@ function displayDetailsPage(buildID) {
 async function displayDetailsData(buildID) {
     let build = builds.find(build => build.BuildID.match(buildID));
 
-    document.getElementById("projectName").innerHTML = build.ProjectName;
+    document.getElementById("projectName").textContent = build.ProjectName;
 
     let dateObj = Date.parse(build.EndTime)
     let time = new Date(dateObj).toUTCString();
-    document.getElementById("timestamp").innerHTML = time;
+    document.getElementById("timestamp").textContent = time;
 
     // Display metadata
-    document.getElementById("projectType").innerHTML = build.ProjectType;
-    document.getElementById("username").innerHTML = build.UserName;
-    document.getElementById("homeDir").innerHTML = build.HomeDir;
-    document.getElementById("ipAddr").innerHTML = build.IP;
-    document.getElementById("gitURL").innerHTML = build.GitURL;
-    document.getElementById("gitHash").innerHTML = build.MasterGitHash;
-    document.getElementById("branchName").innerHTML = build.BranchName;
-    document.getElementById("buildID").innerHTML = build.BuildID;
+    document.getElementById("projectType").textContent = build.ProjectType;
+    document.getElementById("username").textContent = build.UserName;
+    document.getElementById("homeDir").textContent = build.HomeDir;
+    document.getElementById("ipAddr").textContent = build.IP;
+    document.getElementById("gitURL").textContent = build.GitURL;
+    document.getElementById("gitHash").textContent = build.MasterGitHash;
+    document.getElementById("branchName").textContent = build.BranchName;
+    document.getElementById("buildID").textContent = build.BuildID;
     
     // Display artifact(s)
     let text = "";
@@ -264,14 +270,14 @@ async function displayDetailsData(buildID) {
 
     for (artifact in artifactArray) {
         text += "</tr>"
-        text += "<td class='artifact'>" + artifactArray[artifact] + "</td>";
+        text += "<td class='artifact'>" + esc(artifactArray[artifact]) + "</td>";
         text += "</tr>"
     }
     
     document.getElementById("artifactsTableBody").innerHTML = text;
     
     // Display artifact(s) location
-    document.getElementById("artifactsLocation").innerHTML = build.ArtifactLocation;
+    document.getElementById("artifactsLocation").textContent = build.ArtifactLocation;
 
     // Get logs
     let path = build.LogsLocation;
@@ -292,18 +298,18 @@ async function displayLogs(path) {
         
         // Type
         if (buildLogs[log].level == 'info'){
-            text += "<span class='logTypeInfo'>" + buildLogs[log].level.toUpperCase() + "</span>";
+            text += "<span class='logTypeInfo'>" + esc(buildLogs[log].level.toUpperCase()) + "</span>";
         } else if(buildLogs[log].level == 'warn'){
-            text += "<span class='logTypeWarn'>" + buildLogs[log].level.toUpperCase() + "</span>";
+            text += "<span class='logTypeWarn'>" + esc(buildLogs[log].level.toUpperCase()) + "</span>";
         } else {
-            text += "<span class='logTypeError'>" + buildLogs[log].level.toUpperCase() + "</span>";
+            text += "<span class='logTypeError'>" + esc(buildLogs[log].level.toUpperCase()) + "</span>";
         }
         
         // Caller
         //text += "<span class='logCaller'>" + buildLogs[log].caller + ":" + "</span>";
         
         // Message
-        text += "<span class='logMessage'>" + buildLogs[log].msg + "</span>";
+        text += "<span class='logMessage'>" + esc(buildLogs[log].msg) + "</span>";
         
         text += "</td></tr>"
     }

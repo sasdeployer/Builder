@@ -9,6 +9,7 @@ import (
 	"Builder/yaml"
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -88,6 +89,7 @@ func CSharp(filePath string) {
 	done := make(chan struct{})
 
 	scanner := bufio.NewScanner(stdout)
+	scanner.Buffer(make([]byte, 0, 64*1024), utils.MaxLogLine)
 
 	// Use the scanner to scan the output line by line and log it
 	// It's running in a goroutine so that it doesn't block
@@ -98,6 +100,10 @@ func CSharp(filePath string) {
 			spinner.Spinner.Stop()
 			locallogger.Info(line)
 			spinner.Spinner.Start()
+		}
+		if err := scanner.Err(); err != nil {
+			locallogger.Warn("build output capture stopped: " + err.Error())
+			io.Copy(io.Discard, stdout)
 		}
 
 		// We're all done, unblock the channel
@@ -127,7 +133,7 @@ func CSharp(filePath string) {
 	// Update parent dir name to include start time and send back new full path
 	fullPath = directory.UpdateParentDirName(fullPath)
 
-	if os.Args[1] == "init" || os.Args[1] == "config" {
+	if len(os.Args) > 1 && (os.Args[1] == "init" || os.Args[1] == "config") {
 		repoPath := "./" + strings.TrimSuffix(utils.GetName(), ".git")
 
 		if configPath != "" {
@@ -159,6 +165,9 @@ func packageCSharpArtifact(fullPath string) {
 
 	//find artifact by extension
 	artifactsArray, _ := WalkMatch(fullPath, "*.dll")
+	if len(artifactsArray) == 0 {
+		spinner.LogMessage("Build finished but produced no .dll artifact in "+fullPath+".  Check the build command, or set artifactlist in builder.yaml", "fatal")
+	}
 	os.Setenv("BUILDER_ARTIFACT_NAMES", strings.Join([]string(artifactsArray), ","))
 
 	var artifactNames []string
