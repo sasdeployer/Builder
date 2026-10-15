@@ -83,6 +83,13 @@ func MakeDirs() {
 		}
 	}
 
+	// path is the in-progress dir (<name>_<name>); a finished build is renamed
+	// to its timestamp. Anything still here is left over from an interrupted
+	// build and would break or pollute this one.
+	if err := os.RemoveAll(path); err != nil {
+		spinner.LogMessage("Couldn't remove unfinished build data at "+path+": "+err.Error(), "fatal")
+	}
+
 	if os.Getenv("BUILDER_DOCKER_COMMAND") == "true" {
 		MakeParentDir(path)
 
@@ -159,8 +166,25 @@ func UpdateParentDirName(pathWithWrongParentName string) string {
 		path = wdPath
 	}
 
+	// Builds are named by start second; if another build already took this
+	// name (e.g. two builds in the same second), add a suffix instead of
+	// merging both builds into one folder.
+	onDisk := func(name string) string {
+		if strings.HasPrefix(name, "./") {
+			return path + "/" + name[2:]
+		}
+		return name
+	}
+	base := newName
+	for i := 2; ; i++ {
+		if _, err := os.Stat(onDisk(newName)); os.IsNotExist(err) {
+			break
+		}
+		newName = base + "_" + fmt.Sprint(i)
+	}
+
 	// Rename folder
-	if oldName[0:2] == "./" {
+	if strings.HasPrefix(oldName, "./") {
 		// err := os.Rename(path+"/"+oldName[2:], path+"/"+newName[2:])
 		// if err != nil {
 		// 	fmt.Println(err.(*os.LinkError).Err)
@@ -210,7 +234,7 @@ func UpdateParentDirName(pathWithWrongParentName string) string {
 	}
 
 	// Return new path with new parent directory name
-	newPath := strings.Replace(pathWithWrongParentName, oldName[2:], newName[2:], 1)
+	newPath := strings.Replace(pathWithWrongParentName, strings.TrimPrefix(oldName, "./"), strings.TrimPrefix(newName, "./"), 1)
 
 	return newPath
 }

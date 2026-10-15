@@ -142,7 +142,7 @@ func Python() {
 	workspaceDir = os.Getenv("BUILDER_WORKSPACE_DIR")
 	tempWorkspace = workspaceDir + "/temp/"
 
-	if os.Args[1] == "init" || os.Args[1] == "config" {
+	if len(os.Args) > 1 && (os.Args[1] == "init" || os.Args[1] == "config") {
 		repoPath := "./" + strings.TrimSuffix(utils.GetName(), ".git")
 
 		if configPath != "" {
@@ -199,7 +199,10 @@ func packagePythonArtifact(fullPath string) {
 	outputPath := os.Getenv("BUILDER_OUTPUT_PATH")
 
 	//find artifact by extension
-	_, extName := artifact.ExtExistsFunction(workspaceDir, ".zip")
+	found, extName := artifact.ExtExistsFunction(workspaceDir, ".zip")
+	if !found {
+		spinner.LogMessage("Build finished but produced no artifact (expected the dependency zip in "+workspaceDir+").  Check the build command, or set artifactlist in builder.yaml", "fatal")
+	}
 	os.Setenv("BUILDER_ARTIFACT_NAMES", extName)
 
 	//copy artifact, then remove artifact in workspace

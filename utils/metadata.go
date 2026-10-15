@@ -45,15 +45,14 @@ func Metadata(path string) {
 		artifactLocation = os.Getenv("BUILDER_OUTPUT_PATH")
 	} else {
 		if os.Getenv("BUILDER_DIR_PATH") != "" {
-			if artifactPath[0:1] == "." {
+			if strings.HasPrefix(artifactPath, ".") {
 				artifactPath = artifactPath[1:]
 				artifactLocation = builderPath + artifactPath
 			} else {
 				artifactLocation = artifactPath
 			}
 		} else {
-			artifactPath = artifactPath[1:]
-			artifactLocation = builderPath + artifactPath
+			artifactLocation = builderPath + strings.TrimPrefix(artifactPath, ".")
 		}
 	}
 
@@ -65,7 +64,10 @@ func Metadata(path string) {
 		logsLocation = logsPath + "/logs.json"
 	}
 
-	ip := GetIPAdress().String()
+	ip := ""
+	if addr := GetIPAdress(); addr != nil {
+		ip = addr.String()
+	}
 
 	userName := GetUserData().Username
 
@@ -146,21 +148,24 @@ type AllMetaData struct {
 
 // GetUserData return username and userdir
 func GetUserData() *user.User {
-	user, err := user.Current()
+	u, err := user.Current()
 	if err != nil {
-		panic(err)
-
+		spinner.LogMessage("could not look up current user: "+err.Error(), "warn")
+		home, _ := os.UserHomeDir()
+		return &user.User{Username: os.Getenv("USER"), HomeDir: home}
 	}
 
-	return user
+	return u
 
 }
 
-// GetIPAdress Get preferred outbound ip of this machine
+// GetIPAdress returns the preferred outbound IP of this machine, or nil when
+// there is no route (e.g. offline). No packets are sent.
 func GetIPAdress() net.IP {
 	conn, err := net.Dial("udp", "8.8.8.8:80")
 	if err != nil {
-		spinner.LogMessage("could not connect to outbound ip: "+err.Error(), "fatal")
+		spinner.LogMessage("could not determine outbound ip: "+err.Error(), "warn")
+		return nil
 	}
 	defer conn.Close()
 

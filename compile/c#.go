@@ -127,7 +127,7 @@ func CSharp(filePath string) {
 	// Update parent dir name to include start time and send back new full path
 	fullPath = directory.UpdateParentDirName(fullPath)
 
-	if os.Args[1] == "init" || os.Args[1] == "config" {
+	if len(os.Args) > 1 && (os.Args[1] == "init" || os.Args[1] == "config") {
 		repoPath := "./" + strings.TrimSuffix(utils.GetName(), ".git")
 
 		if configPath != "" {
@@ -159,6 +159,9 @@ func packageCSharpArtifact(fullPath string) {
 
 	//find artifact by extension
 	artifactsArray, _ := WalkMatch(fullPath, "*.dll")
+	if len(artifactsArray) == 0 {
+		spinner.LogMessage("Build finished but produced no .dll artifact in "+fullPath+".  Check the build command, or set artifactlist in builder.yaml", "fatal")
+	}
 	os.Setenv("BUILDER_ARTIFACT_NAMES", strings.Join([]string(artifactsArray), ","))
 
 	var artifactNames []string

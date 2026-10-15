@@ -131,7 +131,7 @@ func Rust(filePath string) {
 	// Update parent dir name to include start time
 	fullPath = directory.UpdateParentDirName(fullPath)
 
-	if os.Args[1] == "init" || os.Args[1] == "config" {
+	if len(os.Args) > 1 && (os.Args[1] == "init" || os.Args[1] == "config") {
 		repoPath := "./" + strings.TrimSuffix(utils.GetName(), ".git")
 
 		if configPath != "" {
@@ -177,6 +177,9 @@ func packageRustArtifact(fullPath string) {
 			}
 		}
 		defer tomlfile.Close()
+		if extName == "" {
+			spinner.LogMessage("Could not read the package name from "+os.Getenv("BUILDER_BUILD_FILE")+".  Please specify the name(s) in the artifactlist of the builder.yaml", "fatal")
+		}
 		os.Setenv("BUILDER_ARTIFACT_NAMES", extName)
 		artifactList = extName
 

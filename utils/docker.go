@@ -61,17 +61,13 @@ func Docker() {
 
 // CheckDockerFlag for docker flag
 func CheckDockerFlag() bool {
-	var exists bool
-	cArgs := os.Args[1:]
-	for _, v := range cArgs {
+	for _, v := range os.Args[1:] {
 		if v == "--docker" || v == "-D" {
 			spinner.LogMessage("Building docker image 🐳", "info")
-			exists = true
-		} else {
-			exists = false
+			return true
 		}
 	}
-	return exists
+	return false
 }
 
 func contains(s []string, str string) bool {

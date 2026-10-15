@@ -141,7 +141,7 @@ func Go(filePath string) {
 	// Update parent dir name to include start time
 	fullPath = directory.UpdateParentDirName(fullPath)
 
-	if os.Args[1] == "init" || os.Args[1] == "config" {
+	if len(os.Args) > 1 && (os.Args[1] == "init" || os.Args[1] == "config") {
 		repoPath := "./" + strings.TrimSuffix(utils.GetName(), ".git")
 
 		if configPath != "" {
@@ -175,7 +175,10 @@ func packageGoArtifact(fullPath string) {
 	outputPath := os.Getenv("BUILDER_OUTPUT_PATH")
 
 	//find artifact by extension
-	_, extName := artifact.ExtExistsFunction(fullPath, artifactExt)
+	found, extName := artifact.ExtExistsFunction(fullPath, artifactExt)
+	if !found {
+		spinner.LogMessage("Build finished but produced no artifact (expected an executable named after the project in "+fullPath+").  Check the build command, or set artifactlist in builder.yaml", "fatal")
+	}
 	os.Setenv("BUILDER_ARTIFACT_NAMES", extName)
 
 	//copy artifact, then remove artifact in workspace
