@@ -30,6 +30,8 @@ type Run struct {
 	LogsPath     string
 	CacheHit     bool
 	CachedFrom   string // invocation that originally produced a cache hit's artifacts
+	Locked       bool   // dependencies verifiably pinned (see LockStatus)
+	LockReason   string
 }
 
 // NewInvocationID returns a random ID for a build run.
@@ -122,6 +124,10 @@ func Write(artifactDir string, run Run) error {
 		{Name: "requester", Annotations: DetectRequester()},
 		{Name: "cache", Annotations: map[string]interface{}{
 			"key": run.Inputs.Key(), "hit": run.CacheHit, "producedBy": run.CachedFrom,
+		}},
+		{Name: "determinism", Annotations: map[string]interface{}{
+			"dependenciesLocked": run.Locked, "reason": run.LockReason,
+			"sourceDateEpoch": os.Getenv("SOURCE_DATE_EPOCH"), "goflags": os.Getenv("GOFLAGS"),
 		}},
 	}
 	if run.LogsPath != "" {

@@ -297,6 +297,10 @@ func addRubyFiles(w *zip.Writer, basePath, baseInZip string) {
 			if err != nil {
 				fmt.Println(err)
 			}
+		} else if file.IsDir() && file.Name() == ".git" {
+			// Git metadata isn't part of the artifact, and its index and logs
+			// change on every clone, which would make zips non-reproducible.
+			continue
 		} else if file.IsDir() {
 
 			// Recurse

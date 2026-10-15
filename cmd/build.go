@@ -33,25 +33,38 @@ func runBuild() {
 		spinner.LogMessage("Build cache skipped: "+why, "info")
 	}
 
+	sourceDir := os.Getenv("BUILDER_HIDDEN_DIR")
+	provenance.PinBuildEnv(src, sourceDir)
+
 	// The key needs the project type, which is only known up front when
 	// builder.yaml supplies it (`builder` and `builder config`).
 	if cacheOn && os.Getenv("BUILDER_PROJECT_TYPE") != "" {
-		in := provenance.NewInputs(src, provenance.ConfigFromEnv())
-		if entry, ok := provenance.Lookup(in.Key()); ok {
-			restoreCachedBuild(entry, src, in, invocationID, started)
-			return
+		cfg := provenance.ConfigFromEnv()
+		if locked, _ := provenance.LockStatus(cfg, src, sourceDir); locked || forceCache() {
+			in := provenance.NewInputs(src, cfg)
+			if entry, ok := provenance.Lookup(in.Key()); ok {
+				restoreCachedBuild(entry, src, in, invocationID, started)
+				return
+			}
 		}
 	}
 
 	derive.ProjectType()
 
 	// Compilers fill in defaults (project type, build command), so compute the key after.
-	in := provenance.NewInputs(src, provenance.ConfigFromEnv())
+	cfg := provenance.ConfigFromEnv()
+	in := provenance.NewInputs(src, cfg)
+	// The build renames its folder when it finishes, so re-read the path.
+	locked, lockReason := provenance.LockStatus(cfg, src, os.Getenv("BUILDER_HIDDEN_DIR"))
 	artifactDir := os.Getenv("BUILDER_ARTIFACT_DIR")
 	writeProvenance(artifactDir, provenance.Run{
 		InvocationID: invocationID, Started: started, Finished: time.Now(),
-		Source: src, Inputs: in,
+		Source: src, Inputs: in, Locked: locked, LockReason: lockReason,
 	})
+	if cacheOn && !locked && !forceCache() {
+		spinner.LogMessage("Build not cached: dependencies not locked ("+lockReason+")", "warn")
+		cacheOn = false
+	}
 	if cacheOn {
 		if err := provenance.Store(in, invocationID, artifactDir); err != nil {
 			spinner.LogMessage("Could not cache build: "+err.Error(), "warn")
@@ -60,6 +73,10 @@ func runBuild() {
 		}
 	}
 }
+
+// forceCache lets BUILDER_CACHE=force cache builds whose dependency locking
+// Builder can't verify (the user vouches for them).
+func forceCache() bool { return os.Getenv("BUILDER_CACHE") == "force" }
 
 // restoreCachedBuild lays out the same parent/artifact dirs a compiler would,
 // then fills them from the cache instead of compiling.
@@ -93,6 +110,7 @@ func restoreCachedBuild(entry *provenance.Entry, src provenance.Source, in prove
 	writeProvenance(artifactDir, provenance.Run{
 		InvocationID: invocationID, Started: started, Finished: time.Now(),
 		Source: src, Inputs: in, CacheHit: true, CachedFrom: entry.InvocationID,
+		Locked: true, LockReason: "restored from a locked build",
 	})
 }
 

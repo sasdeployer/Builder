@@ -70,16 +70,13 @@ func Npm() {
 		buildCmdArray := strings.Fields(buildCmd)
 		cmd = exec.Command(buildCmdArray[0], buildCmdArray[1:]...)
 		cmd.Dir = fullPath // or whatever directory it's in
-	} else if buildTool == "npm" {
-		cmd = exec.Command("npm", "install")
-		cmd.Dir = fullPath // or whatever directory it's in
-		os.Setenv("BUILDER_BUILD_COMMAND", "npm install")
 	} else {
-		//default
-		cmd = exec.Command("npm", "install")
+		// default: install exactly what the lockfile pins
+		tool, args := nodeInstall(fullPath, buildTool)
+		cmd = exec.Command(args[0], args[1:]...)
 		cmd.Dir = fullPath // or whatever directory it's in
-		os.Setenv("BUILDER_BUILD_TOOL", "npm")
-		os.Setenv("BUILDER_BUILD_COMMAND", "npm install")
+		os.Setenv("BUILDER_BUILD_TOOL", tool)
+		os.Setenv("BUILDER_BUILD_COMMAND", strings.Join(args, " "))
 	}
 
 	//run cmd, check for err, log cmd
@@ -307,10 +304,37 @@ func addNpmFiles(w *zip.Writer, basePath, baseInZip string) {
 			if err != nil {
 				fmt.Println(err)
 			}
+		} else if file.IsDir() && file.Name() == ".git" {
+			// Git metadata isn't part of the artifact, and its index and logs
+			// change on every clone, which would make zips non-reproducible.
+			continue
 		} else if file.IsDir() {
 			// Recurse
 			newBase := basePath + file.Name() + "/"
 			addNpmFiles(w, newBase, baseInZip+file.Name()+"/")
 		}
 	}
+}
+
+// nodeInstall picks the install command for the lockfile in dir, so installs
+// are reproducible: npm ci, or --frozen-lockfile for pnpm/yarn/bun. Without a
+// lockfile it falls back to npm install (and the build isn't cached).
+func nodeInstall(dir, buildTool string) (string, []string) {
+	exists := func(name string) bool {
+		_, err := os.Stat(dir + "/" + name)
+		return err == nil
+	}
+	switch {
+	case exists("package-lock.json") || exists("npm-shrinkwrap.json"):
+		return "npm", []string{"npm", "ci"}
+	case buildTool == "npm":
+		return "npm", []string{"npm", "install"}
+	case exists("pnpm-lock.yaml"):
+		return "pnpm", []string{"pnpm", "install", "--frozen-lockfile"}
+	case exists("yarn.lock"):
+		return "yarn", []string{"yarn", "install", "--frozen-lockfile"}
+	case exists("bun.lock") || exists("bun.lockb"):
+		return "bun", []string{"bun", "install", "--frozen-lockfile"}
+	}
+	return "npm", []string{"npm", "install"}
 }

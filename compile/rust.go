@@ -69,13 +69,13 @@ func Rust(filePath string) {
 		cmd = exec.Command(buildCmdArray[0], buildCmdArray[1:]...)
 		cmd.Dir = fullPath // or whatever directory it's in
 	} else if buildTool == "rust" {
-		cmd = exec.Command("cargo", "build", "-r")
+		cmd = exec.Command("cargo", cargoBuildArgs(fullPath)...)
 		cmd.Dir = fullPath // or whatever directory it's in
-		os.Setenv("BUILDER_BUILD_COMMAND", "cargo build -r")
+		os.Setenv("BUILDER_BUILD_COMMAND", "cargo "+strings.Join(cargoBuildArgs(fullPath), " "))
 	} else {
-		cmd = exec.Command("cargo", "build", "-r")
+		cmd = exec.Command("cargo", cargoBuildArgs(fullPath)...)
 		cmd.Dir = fullPath // or whatever directory it's in
-		os.Setenv("BUILDER_BUILD_COMMAND", "cargo build -r")
+		os.Setenv("BUILDER_BUILD_COMMAND", "cargo "+strings.Join(cargoBuildArgs(fullPath), " "))
 		os.Setenv("BUILDER_BUILD_TOOL", "rust")
 	}
 
@@ -240,4 +240,13 @@ func packageRustArtifact(fullPath string) {
 		//remove artifact directory
 		runChecked("warn", "rm", "-r", artifactDir)
 	}
+}
+
+// cargoBuildArgs adds --locked when Cargo.lock exists, so cargo fails instead
+// of silently resolving newer dependency versions.
+func cargoBuildArgs(dir string) []string {
+	if _, err := os.Stat(dir + "/Cargo.lock"); err == nil {
+		return []string{"build", "-r", "--locked"}
+	}
+	return []string{"build", "-r"}
 }

@@ -26,7 +26,7 @@ const cacheSchema = "builder-cache/v1"
 var lockfiles = map[string]bool{
 	"go.sum": true, "package-lock.json": true, "yarn.lock": true, "pnpm-lock.yaml": true,
 	"cargo.lock": true, "gemfile.lock": true, "requirements.txt": true, "poetry.lock": true,
-	"pom.xml": true, "packages.lock.json": true, "uv.lock": true, "pipfile.lock": true,
+	"pom.xml": true, "packages.lock.json": true, "npm-shrinkwrap.json": true, "uv.lock": true, "pipfile.lock": true,
 	"bun.lock": true, "bun.lockb": true,
 }
 
@@ -112,7 +112,7 @@ func Platform() string {
 // buildEnv captures environment variables that change compiler output.
 func buildEnv() map[string]string {
 	env := map[string]string{}
-	for _, k := range []string{"GOOS", "GOARCH", "GOFLAGS", "CGO_ENABLED", "NODE_ENV", "RUSTFLAGS", "CFLAGS", "LDFLAGS"} {
+	for _, k := range []string{"GOOS", "GOARCH", "GOFLAGS", "CGO_ENABLED", "NODE_ENV", "RUSTFLAGS", "CFLAGS", "LDFLAGS", "SOURCE_DATE_EPOCH", "BUNDLE_FROZEN"} {
 		if v := os.Getenv(k); v != "" {
 			env[k] = v
 		}
