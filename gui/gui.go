@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
@@ -125,6 +126,10 @@ func Gui() {
 	}
 
 	getLogsJSON := func(path string) string {
+		// The page may only read Builder log files.
+		if filepath.Base(path) != "logs.json" {
+			return "[]"
+		}
 		logsFile, err := os.Open(path)
 		if err != nil {
 			log.Fatal(err)
